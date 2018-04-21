@@ -9,7 +9,6 @@
  */
 package org.uniovi.asw.sensor_data_mining.types;
 
-import java.util.Date;
 import java.util.Map;
 
 import lombok.Data;
@@ -23,7 +22,6 @@ import lombok.Data;
 @Data
 public class Incident {
 	private String incidentId;
-	private Date date = new Date();
 	private String title;
 	private String description;
 	private String status;

@@ -10,16 +10,19 @@
 package org.uniovi.asw.sensor_data_mining.mining;
 
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.bson.types.ObjectId;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 import org.uniovi.asw.sensor_data_mining.types.Incident;
 
 import com.netflix.appinfo.InstanceInfo;
 import com.netflix.discovery.EurekaClient;
 
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Instance of SensorMinig.java
@@ -27,67 +30,73 @@ import lombok.Getter;
  * @author
  * @version
  */
+@Slf4j
 public class SensorMinig {
 
-	private EurekaClient eureka;
+    private EurekaClient eureka;
+    private String sensorId;
+    @Getter
+    private String metric;
+    private Incident[] incidents;
+    private Object[][] reduced;
 
-	// private static final String API_GATEWAY =
-	// "http://asw-i3a-zuul-eu-west-1.guill.io";
+    public SensorMinig(String sensorId, String metric, EurekaClient eureka) {
+	this.sensorId = sensorId;
+	this.metric = metric;
+	this.eureka = eureka;
+	this.execute();
+    }
 
-	private String sensorId;
-	@Getter
-	private String metric;
-	private Incident[] incidents;
-	private Map<Long, Double> reduced = new HashMap<Long, Double>();
+    public Object[][] reduce() {
+	return reduced;
+    }
 
-	public SensorMinig( String sensorId, String metric, EurekaClient eureka ) {
-		this.sensorId = sensorId;
-		this.metric = metric;
-		this.eureka = eureka;
-		this.execute();
+    private void execute() {
+
+	InstanceInfo instance = eureka.getNextServerFromEureka("incidents_service", false);
+	UriComponentsBuilder url = UriComponentsBuilder.fromUriString(instance.getHomePageUrl() + "/incidents");
+	url.queryParam("operatorId", this.sensorId);
+	log.info("Connecting to: " + url.toUriString());
+
+	try {
+	    incidents = new RestTemplate().getForObject(url.toUriString(), Incident[].class);
+	} catch (RestClientException e) {
+	    log.error(e.toString());
+	    throw e;
 	}
 
-	public Map<Long, Double> reduce() {
-		return reduced;
+	this.reduced = new Object[incidents.length][2];
+
+	log.info("Retrieved " + incidents.length + " incidents for the sensor: " + this.sensorId);
+	log.info("Starting mining the data.");
+	String mostRelevantMetricComputed = mostRelevantMetric();
+	if (mostRelevantMetricComputed != null) {
+	    metric = mostRelevantMetricComputed;
 	}
+	AtomicInteger counter = new AtomicInteger(0);
+	Arrays.stream(incidents).forEach(i -> {
+	    if (i.getPropertyVal().containsKey(metric)) {
+		this.reduced[counter.get()][0] = new ObjectId(i.getIncidentId()).getDate().getTime();
+		this.reduced[counter.get()][1] = Double.parseDouble(i.getPropertyVal().get(metric));
+		counter.incrementAndGet();
+	    }
+	});
+    }
 
-	private void execute() {
+    private String mostRelevantMetric() {
+	InstanceInfo instance = eureka.getNextServerFromEureka("agents_service", false);
+	log.info("Connecting to: " + instance.getHomePageUrl() + "/agents/" + this.sensorId);
 
-		InstanceInfo instance = eureka.getNextServerFromEureka( "operators_service", false );
+	String agentData = new RestTemplate().getForObject(instance.getHomePageUrl() + "/agents/" + this.sensorId,
+		String.class);
 
-		incidents = new RestTemplate().getForObject(
-				"http://" + instance.getHostName() + ":" + instance.getSecurePort()
-						+ "/incidents?operatorId=" + this.sensorId,
-				Incident[].class );
-
-		String mostRelevantMetricComputed = mostRelevantMetric();
-		if (mostRelevantMetricComputed != null) {
-			metric = mostRelevantMetricComputed;
-		}
-
-		Arrays.stream( incidents ).forEach( i -> {
-			if (i.getPropertyVal().containsKey( metric )) {
-				this.reduced.put( i.getDate().getTime(), Double.parseDouble(
-						i.getPropertyVal().get( metric ) ) );
-			}
-		} );
+	if (agentData.toUpperCase().contains("TEMPERATURE")) {
+	    return "temperature";
+	} else if (agentData.toUpperCase().contains("HUMIDITY")) {
+	    return "humidity";
+	} else if (agentData.toUpperCase().contains("POWER")) {
+	    return "power consumption";
 	}
-
-	private String mostRelevantMetric() {
-		InstanceInfo instance = eureka.getNextServerFromEureka( "agents_service", false );
-
-		String agentData = new RestTemplate().getForObject(
-				"http://" + instance.getHostName() + ":" + instance.getSecurePort() + "/agents/"
-						+ this.sensorId,
-				String.class );
-
-		if (agentData.toUpperCase().contains( "TEMPERATURE" )) {
-			return "temperature";
-		} else if (agentData.toUpperCase().contains( "HUMIDITY" )) {
-			return "humidity";
-		} else if (agentData.toUpperCase().contains( "POWER" )) {
-			return "power consumption";
-		}
-		return null;
-	}
+	return null;
+    }
 }

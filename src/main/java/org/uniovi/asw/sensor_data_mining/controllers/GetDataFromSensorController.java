@@ -21,38 +21,44 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.uniovi.asw.sensor_data_mining.mining.SensorMinig;
 
+
 import com.netflix.discovery.EurekaClient;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Instance of GetDataFromSensorController.java
  * 
- * @author 
- * @version 
+ * @author
+ * @version
  */
+@Slf4j
 @RestController
 public class GetDataFromSensorController {
+
+    @Autowired
+    private EurekaClient eureka;
+
+    @HystrixCommand(fallbackMethod = "reliable")
+    @RequestMapping(value = "/sensor/{sensorId}", produces = "application/json; charset=UTF-8")
+    public ResponseEntity<String> mineData(@PathVariable("sensorId") String sensorId) {
+	Map<String, Object> responseMap = new HashMap<String, Object>();
+	SensorMinig sensorData = new SensorMinig(sensorId, "", eureka);
+	responseMap.put("metric", sensorData.getMetric());
+	responseMap.put("data", sensorData.reduce());
+
+	return new ResponseEntity<String>(new JSONObject(responseMap).toString(), HttpStatus.OK);
+    }
+
+    public ResponseEntity<String> reliable(String sensorId) {
+	log.error("Falling back in the hystrix safe method.");
 	
-	@Autowired
-	private EurekaClient eureka;
-	
-	@HystrixCommand(fallbackMethod = "reliable")
-	@RequestMapping(value="/sensor/{sensorId}")
-	public ResponseEntity<String> mingData(@PathVariable("sensorId") String sensorId) {
-		Map<String, Object> responseMap = new HashMap<String, Object>();
-		SensorMinig sensorData = new SensorMinig( sensorId, "", eureka);
-		responseMap.put( "metric",  sensorData.getMetric());
-		responseMap.put( "data", sensorData.reduce() );
-		
-		return new ResponseEntity<String>(new JSONObject(responseMap).toString(), HttpStatus.OK);
-	}
-	
-	public ResponseEntity<String> reliable(String sensorId) {
-		Map<String, Object> responseMap = new HashMap<String, Object>();
-		responseMap.put( "metric",  "");
-		responseMap.put( "data", "" );
-		
-		return new ResponseEntity<String>(new JSONObject(responseMap).toString(), HttpStatus.INTERNAL_SERVER_ERROR);
-	}
+	Map<String, Object> responseMap = new HashMap<String, Object>();
+	responseMap.put("metric", "");
+	responseMap.put("data", new Object[0]);
+
+	return new ResponseEntity<String>(new JSONObject(responseMap).toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 
 }
