@@ -55,7 +55,7 @@ public class SensorMinig {
 
 	InstanceInfo instance = eureka.getNextServerFromEureka("incidents_service", false);
 	UriComponentsBuilder url = UriComponentsBuilder.fromUriString(instance.getHomePageUrl() + "/incidents");
-	url.queryParam("operatorId", this.sensorId);
+	url.queryParam("agentId", this.sensorId);
 	log.info("Connecting to: " + url.toUriString());
 
 	try {
