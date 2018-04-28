@@ -1,12 +1,3 @@
-/*
- * This source file is part of the sensor_data_mining open source project.
- *
- * Copyright (c) 2018 willy and the sensor_data_mining project authors.
- * Licensed under GNU General Public License v3.0.
- *
- * See /LICENSE for license information.
- * 
- */
 package org.uniovi.asw.sensor_data_mining.controllers;
 
 import java.util.HashMap;
@@ -14,35 +5,30 @@ import java.util.Map;
 
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.uniovi.asw.sensor_data_mining.mining.SensorMinig;
-
 
 import com.netflix.discovery.EurekaClient;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 
 import lombok.extern.slf4j.Slf4j;
 
-/**
- * Instance of GetDataFromSensorController.java
- * 
- * @author
- * @version
- */
 @Slf4j
-@RestController
-public class GetDataFromSensorController {
+@Controller
+public class GetChartForSensorController {
 
+    
     @Autowired
     private EurekaClient eureka;
-
+    
     @HystrixCommand(fallbackMethod = "reliable")
-    @RequestMapping(value = "/sensor/{sensorId}", produces = "application/json; charset=UTF-8")
-    public ResponseEntity<String> mineData(@PathVariable("sensorId") String sensorId) {
+    @RequestMapping(value = "/chart/{sensorId}", method = RequestMethod.GET)
+    public String mineData(Model model, @PathVariable("sensorId") String sensorId) {
+	log.info("Loading /chart/"+sensorId);
 	Map<String, Object> responseMap = new HashMap<String, Object>();
 	SensorMinig sensorData = new SensorMinig(sensorId, "", eureka);
 	responseMap.put("metric", sensorData.getMetric());
@@ -51,11 +37,13 @@ public class GetDataFromSensorController {
 	responseMap.put("max",sensorData.getMax());
 	responseMap.put("mean",sensorData.getMean());
 	responseMap.put("data", sensorData.reduce());
+	
+	model.addAttribute("sensorId", sensorId);
 
-	return new ResponseEntity<String>(new JSONObject(responseMap).toString(), HttpStatus.OK);
+	return "chartTemplate";
     }
 
-    public ResponseEntity<String> reliable(String sensorId) {
+    public String reliable(Model model, String sensorId) {
 	log.error("Falling back in the hystrix safe method.");
 	
 	Map<String, Object> responseMap = new HashMap<String, Object>();
@@ -65,8 +53,9 @@ public class GetDataFromSensorController {
 	responseMap.put("max",0.0);
 	responseMap.put("mean",0.0);
 	responseMap.put("data", new Object[0]);
+	
+	model.addAttribute("data", new JSONObject(responseMap).toString());
 
-	return new ResponseEntity<String>(new JSONObject(responseMap).toString(), HttpStatus.INTERNAL_SERVER_ERROR);
+	return "chartTemplate";
     }
-
 }
