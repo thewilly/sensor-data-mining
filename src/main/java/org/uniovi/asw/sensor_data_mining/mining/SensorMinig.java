@@ -37,6 +37,10 @@ public class SensorMinig {
     private String sensorId;
     @Getter
     private String metric;
+    @Getter
+    private double mean = 0.0, min = Double.MAX_VALUE, max = Double.MIN_VALUE;
+    @Getter
+    private int numberOfLectures;
     private Incident[] incidents;
     private Object[][] reduced;
 
@@ -52,9 +56,8 @@ public class SensorMinig {
     }
 
     private void execute() {
-
 	InstanceInfo instance = eureka.getNextServerFromEureka("incidents_service", false);
-	UriComponentsBuilder url = UriComponentsBuilder.fromUriString(instance.getHomePageUrl() + "/incidents");
+	UriComponentsBuilder url = UriComponentsBuilder.fromUriString(instance.getHomePageUrl()+ "/incidents");
 	url.queryParam("agentId", this.sensorId);
 	log.info("Connecting to: " + url.toUriString());
 
@@ -75,12 +78,36 @@ public class SensorMinig {
 	}
 	AtomicInteger counter = new AtomicInteger(0);
 	Arrays.stream(incidents).forEach(i -> {
+
+	    // If the incident contains a lecture for the selected metric.
 	    if (i.getPropertyVal().containsKey(metric)) {
+
+		// We assign to lecture the value of the metric.
+		double lecture = Double.parseDouble(i.getPropertyVal().get(metric));
+
+		// Adding the values to a map that we will return for the client if it wants to
+		// process the data.
 		this.reduced[counter.get()][0] = new ObjectId(i.getIncidentId()).getDate().getTime();
-		this.reduced[counter.get()][1] = Double.parseDouble(i.getPropertyVal().get(metric));
+		this.reduced[counter.get()][1] = lecture;
+
+		// Then compute some useful metrics. Like medium of all the lectures, min
+		// lecture and max lecture.
+		mean = +lecture;
+		if (lecture < min) {
+		    this.min = lecture;
+		}
+		if (lecture > max) {
+		    this.max = lecture;
+		}
 		counter.incrementAndGet();
 	    }
 	});
+
+	// Finally we compute the medium dividing by the number of lectures.
+	this.mean = this.mean / counter.get();
+
+	// We update the number of metrics.
+	this.numberOfLectures = counter.get();
     }
 
     private String mostRelevantMetric() {
