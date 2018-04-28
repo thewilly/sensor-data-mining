@@ -92,7 +92,7 @@ public class SensorMinig {
 
 		// Then compute some useful metrics. Like medium of all the lectures, min
 		// lecture and max lecture.
-		mean = +lecture;
+		mean =+ lecture;
 		if (lecture < min) {
 		    this.min = lecture;
 		}

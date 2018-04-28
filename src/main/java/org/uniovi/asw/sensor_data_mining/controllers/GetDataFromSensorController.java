@@ -16,6 +16,7 @@ import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +42,7 @@ public class GetDataFromSensorController {
     private EurekaClient eureka;
 
     @HystrixCommand(fallbackMethod = "reliable")
+    @CrossOrigin(origins = "*")
     @RequestMapping(value = "/sensor/{sensorId}", produces = "application/json; charset=UTF-8")
     public ResponseEntity<String> mineData(@PathVariable("sensorId") String sensorId) {
 	Map<String, Object> responseMap = new HashMap<String, Object>();
